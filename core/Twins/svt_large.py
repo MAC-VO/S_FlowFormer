@@ -99,16 +99,19 @@ class LocallyGroupedAttn(nn.Module):
         _h, _w = Hp // self.ws, Wp // self.ws
         x = x.reshape(B, _h, self.ws, _w, self.ws, C).transpose(2, 3)
         
+        qkv: torch.Tensor
         qkv = self.qkv(x).reshape(
             B, _h * _w, self.ws * self.ws, 3, self.num_heads, C // self.num_heads
         ).permute(3, 0, 1, 4, 2, 5)
         
         q, k, v = qkv.unbind(0)
-
+        
+        qB, qN = q.size(0), q.size(1)
         x = F.scaled_dot_product_attention(
-            q, k, v,
+            q.flatten(start_dim=0, end_dim=1), k.flatten(start_dim=0, end_dim=1), v.flatten(start_dim=0, end_dim=1),
             dropout_p=self.attn_drop.p if self.training else 0.,
         )
+        x = x.reshape(qB, qN, *x.shape[1:])
 
         x = x.transpose(2, 3).reshape(B, _h, _w, self.ws, self.ws, C)
         x = x.transpose(2, 3).reshape(B, _h * self.ws, _w * self.ws, C)
